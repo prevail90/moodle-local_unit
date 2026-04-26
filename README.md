@@ -56,6 +56,17 @@ Recommended update workflow for future CSV releases:
 - Update this README if the CSV source, field mapping, or profile-field behavior changes.
 - Run `php admin/cli/upgrade.php`, then `php local/unit/cli/sync.php`.
 
+## GitHub Releases
+
+Pushing a version tag creates a GitHub Release and attaches a Moodle-installable ZIP file:
+
+```sh
+git tag v1.0.0-rc.1
+git push origin main --tags
+```
+
+The release workflow builds the ZIP as `unit-<tag>.zip` with a top-level `unit/` folder, so it can be installed through Moodle's plugin installer or extracted to `local/unit`.
+
 ## Required Moodle Profile Field
 
 Create a custom user profile field with shortname:

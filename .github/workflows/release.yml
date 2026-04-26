@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build Moodle plugin release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build Moodle plugin zip
+        run: |
+          set -euo pipefail
+
+          mkdir -p build
+          zipfile="build/unit-${GITHUB_REF_NAME}.zip"
+
+          git archive \
+            --format=zip \
+            --prefix=unit/ \
+            --output="${zipfile}" \
+            HEAD
+
+          unzip -l "${zipfile}"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          zipfile="build/unit-${GITHUB_REF_NAME}.zip"
+          flags=()
+
+          if [[ "${GITHUB_REF_NAME}" == *"-rc."* || "${GITHUB_REF_NAME}" == *"-beta."* || "${GITHUB_REF_NAME}" == *"-alpha."* ]]; then
+            flags+=(--prerelease)
+          fi
+
+          gh release create "${GITHUB_REF_NAME}" \
+            "${zipfile}#unit-${GITHUB_REF_NAME}.zip" \
+            --title "Unit Profile Sync ${GITHUB_REF_NAME}" \
+            --notes "Moodle local_unit release ${GITHUB_REF_NAME}. Install the attached ZIP through Moodle's plugin installer or extract it to local/unit." \
+            "${flags[@]}"
