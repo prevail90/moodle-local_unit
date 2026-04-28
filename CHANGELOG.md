@@ -6,4 +6,5 @@
 - Stores UIC, parent UIC, SIMPLENAME, DRRSANAME, location, path, component, type, document type, and source metadata.
 - Syncs `department` and `institution` from `DRRSANAME` based on the user's custom profile field `unit_uic`.
 - Normalizes stored `unit_uic` values to trimmed uppercase during user sync and scheduled sync.
+- Clears invalid or empty `unit_uic` values and leaves `department` and `institution` blank until a valid UIC is entered.
 - Adds CLI tools for CSV import and profile sync.

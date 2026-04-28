@@ -26,6 +26,7 @@ if ($unrecognised) {
 
 if ($options['help']) {
     $help = "Sync user department and institution from custom profile field unit_uic.
+Invalid or empty UIC values are cleared.
 
 Options:
   -h, --help          Print this help.
@@ -45,4 +46,4 @@ if ($options['userid']) {
     $updated = \local_unit\local\profile_sync::sync_all((int) $options['limit']);
 }
 
-cli_writeln("Updated {$updated} user record(s).");
+cli_writeln("Updated {$updated} user/profile record(s).");

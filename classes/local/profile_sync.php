@@ -16,10 +16,10 @@ class profile_sync {
      * Sync one user's department and institution fields from their unit_uic value.
      *
      * @param int $userid User id.
-     * @return bool True when the user record was updated.
+     * @return bool True when the user or profile data was updated.
      */
     public static function sync_user(int $userid): bool {
-        global $CFG, $DB;
+        global $DB;
 
         $user = $DB->get_record('user', ['id' => $userid, 'deleted' => 0], 'id,department,institution', IGNORE_MISSING);
         if (!$user) {
@@ -30,12 +30,12 @@ class profile_sync {
 
         $uic = self::get_custom_profile_value($userid, self::UIC_FIELD);
         if ($uic === '') {
-            return false;
+            return self::clear_synced_profile_data($userid, $user);
         }
 
         $unit = importer::find_by_uic($uic);
         if (!$unit) {
-            return false;
+            return self::clear_synced_profile_data($userid, $user);
         }
 
         $department = (string) $unit->drrsaname;
@@ -52,15 +52,7 @@ class profile_sync {
             return false;
         }
 
-        require_once($CFG->dirroot . '/user/lib.php');
-        user_update_user((object) [
-            'id' => $userid,
-            'department' => $department,
-            'institution' => $institution,
-            'timemodified' => time(),
-        ], false, false);
-
-        return true;
+        return self::update_user_department_and_institution($user, $department, $institution);
     }
 
     /**
@@ -136,7 +128,7 @@ class profile_sync {
     }
 
     /**
-     * Sync all non-deleted users that have a unit_uic custom profile value.
+     * Sync all non-deleted users that have a unit_uic custom profile row.
      *
      * @param int $limit Optional maximum number of users to process.
      * @return int Number of updated user records.
@@ -155,8 +147,7 @@ class profile_sync {
                   FROM {user} u
                   JOIN {user_info_data} d ON d.userid = u.id
                  WHERE u.deleted = 0
-                   AND d.fieldid = :fieldid
-                   AND " . $DB->sql_compare_text('d.data') . " <> ''";
+                   AND d.fieldid = :fieldid";
         $params = ['fieldid' => $field->id];
         $recordset = $DB->get_recordset_sql($sql, $params, 0, $limit);
 
@@ -189,5 +180,76 @@ class profile_sync {
         $value = $DB->get_field_sql($sql, ['userid' => $userid, 'shortname' => $shortname]);
 
         return importer::normalise_uic($value ?: '');
+    }
+
+    /**
+     * Clear a user's saved UIC profile value.
+     *
+     * @param int $userid User id.
+     * @return bool True when the profile data row was updated.
+     */
+    private static function clear_user_uic(int $userid): bool {
+        global $DB;
+
+        $sql = "SELECT d.id, d.data
+                  FROM {user_info_data} d
+                  JOIN {user_info_field} f ON f.id = d.fieldid
+                 WHERE d.userid = :userid
+                   AND f.shortname = :shortname";
+        $record = $DB->get_record_sql($sql, ['userid' => $userid, 'shortname' => self::UIC_FIELD], IGNORE_MISSING);
+        if (!$record || $record->data === '') {
+            return false;
+        }
+
+        $DB->update_record('user_info_data', (object) [
+            'id' => $record->id,
+            'data' => '',
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Clear Moodle profile fields managed by this plugin.
+     *
+     * @param int $userid User id.
+     * @param \stdClass $user Current user record.
+     * @return bool True when the user or profile data was updated.
+     */
+    private static function clear_synced_profile_data(int $userid, \stdClass $user): bool {
+        $cleareduic = self::clear_user_uic($userid);
+        $cleareduser = self::update_user_department_and_institution($user, '', '');
+
+        return $cleareduic || $cleareduser;
+    }
+
+    /**
+     * Update the Moodle fields derived from the UIC lookup.
+     *
+     * @param \stdClass $user Current user record.
+     * @param string $department New department value.
+     * @param string $institution New institution value.
+     * @return bool True when the user record was updated.
+     */
+    private static function update_user_department_and_institution(
+        \stdClass $user,
+        string $department,
+        string $institution
+    ): bool {
+        global $CFG;
+
+        if ($user->department === $department && $user->institution === $institution) {
+            return false;
+        }
+
+        require_once($CFG->dirroot . '/user/lib.php');
+        user_update_user((object) [
+            'id' => $user->id,
+            'department' => $department,
+            'institution' => $institution,
+            'timemodified' => time(),
+        ], false, false);
+
+        return true;
     }
 }
